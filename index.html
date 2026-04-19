@@ -2,55 +2,116 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Репетитор Хаб</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: sans-serif; background-color: var(--tg-theme-bg-color); color: var(--tg-theme-text-color); padding: 15px; }
-        .button { display: block; width: 100%; padding: 10px; margin: 10px 0; background: #3390ec; color: white; border: none; border-radius: 8px; cursor: pointer; text-align: center; }
-        .card { background: var(--tg-theme-secondary-bg-color); padding: 10px; border-radius: 10px; margin-bottom: 10px; }
-        .hidden { display: none; }
+        :root {
+            --main-color: #3390ec;
+            --bg-color: var(--tg-theme-bg-color, #ffffff);
+            --text-color: var(--tg-theme-text-color, #000000);
+            --hint-color: var(--tg-theme-hint-color, #999999);
+            --sec-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+        }
+        body { font-family: sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 15px; }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        
+        h2 { border-bottom: 2px solid var(--main-color); padding-bottom: 10px; }
+        .button { 
+            display: block; width: 100%; padding: 12px; margin: 10px 0; 
+            background: var(--main-color); color: white; border: none; 
+            border-radius: 10px; font-weight: bold; cursor: pointer; 
+        }
+        .btn-back { background: var(--hint-color); margin-top: 20px; }
+        
+        input, select {
+            width: 100%; padding: 10px; margin: 5px 0 15px;
+            border: 1px solid var(--hint-color); border-radius: 8px;
+            background: var(--sec-bg); color: var(--text-color);
+            box-sizing: border-box;
+        }
+        .card { background: var(--sec-bg); padding: 12px; border-radius: 12px; margin-bottom: 10px; border-left: 4px solid var(--main-color); }
     </style>
 </head>
 <body>
-    <div id="app">
-        <h2 id="role-title">Вхід в систему</h2>
+
+    <div id="screen-main" class="screen active">
+        <h2 id="user-greeting">Привіт, Вчителю!</h2>
+        <button class="button" onclick="showScreen('screen-add-student')">➕ Додати учня</button>
+        <button class="button" onclick="showScreen('screen-schedule')">📅 Мій розклад</button>
+        <button class="button" onclick="showScreen('screen-mark')">✅ Відмітити заняття</button>
+        <button class="button" onclick="showScreen('screen-list')">👥 Мої учні</button>
+    </div>
+
+    <div id="screen-add-student" class="screen">
+        <h2>Додати учня</h2>
+        <label>Ім'я учня</label>
+        <input type="text" id="std-name" placeholder="Введіть ім'я">
         
-        <div id="teacher-menu" class="hidden">
-            <button class="button" onclick="action('add_student')">➕ Додати учня</button>
-            <button class="button" onclick="action('schedule')">📅 Мій розклад</button>
-            <button class="button" onclick="action('mark_lesson')">✅ Відмітити заняття</button>
-            <button class="button" onclick="action('my_students')">👥 Мої учні</button>
-        </div>
+        <label>Ціна за заняття (₴)</label>
+        <input type="number" id="std-price" placeholder="Наприклад: 400">
+        
+        <label>Дні занять</label>
+        <select id="std-days" multiple style="height: 100px;">
+            <option value="Пн">Понеділок</option>
+            <option value="Вв">Вівторок</option>
+            <option value="Ср">Середа</option>
+            <option value="Чт">Четвер</option>
+            <option value="Пт">П'ятниця</option>
+            <option value="Сб">Субота</option>
+            <option value="Нд">Неділя</option>
+        </select>
+        
+        <button class="button" onclick="saveStudent()">Зберегти та створити коди</button>
+        <button class="button btn-back" onclick="showScreen('screen-main')">Назад</button>
+    </div>
 
-        <div id="student-menu" class="hidden">
-            <button class="button" onclick="action('student_schedule')">📅 Мій розклад</button>
+    <div id="screen-list" class="screen">
+        <h2>Ваші учні</h2>
+        <div id="students-container">
+            <p style="color: var(--hint-color);">Учнів поки немає...</p>
         </div>
-
-        <div id="parent-menu" class="hidden">
-            <button class="button" onclick="action('child_schedule')">📅 Розклад дитини</button>
-            <button class="button" onclick="action('child_balance')">💰 Баланс дитини</button>
-            <button class="button" onclick="action('top_up')">💳 Поповнити баланс</button>
-        </div>
+        <button class="button btn-back" onclick="showScreen('screen-main')">Назад</button>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Функція для відправки даних назад у бот
-        function action(type) {
-            tg.sendData(JSON.stringify({action: type}));
-            tg.close();
+        function showScreen(screenId) {
+            // Ховаємо всі екрани
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            // Показуємо потрібний
+            document.getElementById(screenId).classList.add('active');
         }
 
-        // Логіка відображення (в реальному додатку роль прийде з сервера)
-        // Для тесту можна вручну перемикати:
-        const userRole = 'teacher'; // Можливі: teacher, student, parent
+        function saveStudent() {
+            const name = document.getElementById('std-name').value;
+            const price = document.getElementById('std-price').value;
+            
+            if(!name || !price) {
+                alert("Заповніть всі поля!");
+                return;
+            }
 
-        if (userRole === 'teacher') document.getElementById('teacher-menu').classList.remove('hidden');
-        if (userRole === 'student') document.getElementById('student-menu').classList.remove('hidden');
-        if (userRole === 'parent') document.getElementById('parent-menu').classList.remove('hidden');
+            // Генеруємо випадкові коди (імітація)
+            const codeStudent = "S" + Math.floor(1000 + Math.random() * 9000);
+            const codeParent = "P" + Math.floor(1000 + Math.random() * 9000);
+
+            alert(`Учня додано!\nКод учня: ${codeStudent}\nКод батьків: ${codeParent}`);
+            
+            // Тут ми можемо відправити дані боту, щоб він зберіг їх у БД
+            tg.sendData(JSON.stringify({
+                type: 'new_student',
+                name: name,
+                price: price,
+                code_s: codeStudent,
+                code_p: codeParent
+            }));
+
+            showScreen('screen-main');
+        }
     </script>
 </body>
 </html>
